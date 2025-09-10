@@ -1,0 +1,77 @@
+trigger:
+  - main
+
+resources:
+  - repo: self
+
+variables:
+  deployPath: "/home/ubuntu/task-manager-app"
+  sshEndpoint: "training_anil"
+
+stages:
+  - stage: Deploy
+    displayName: Deploy to VM
+    jobs:
+      - job: Deploy
+        displayName: Copy files & restart Docker
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          # # Clean old files from target folder
+          # - task: SSH@0
+          #   displayName: "Clean old deployment folder"
+          #   inputs:
+          #     sshEndpoint: $(sshEndpoint)
+          #     runOptions: "commands"
+          #     commands: |
+          #       rm -rf $(deployPath)/*
+          #     readyTimeout: "20000"
+
+          # Copy only required files
+          - task: CopyFilesOverSSH@0
+            displayName: "Copy app files to VM"
+            inputs:
+              sshEndpoint: $(sshEndpoint)
+              sourceFolder: "$(Build.SourcesDirectory)"
+              contents: |
+                backend/**
+                frontend/**
+                db/**
+                .env
+                docker-compose.yml
+              targetFolder: $(deployPath)
+              readyTimeout: "20000"
+
+          # Stop existing containers safely
+          # - task: SSH@0
+          #   displayName: "Stop running containers"
+          #   inputs:
+          #     sshEndpoint: $(sshEndpoint)
+          #     runOptions: "commands"
+          #     commands: |
+          #       cd $(deployPath)
+          #       docker compose down
+          #     readyTimeout: "20000"
+
+          # Rebuild & restart containers in detached mode
+          # - task: SSH@0
+          #   displayName: "Rebuild and restart containers"
+          #   inputs:
+          #     sshEndpoint: $(sshEndpoint)
+          #     runOptions: "commands"
+          #     commands: |
+          #       cd $(deployPath)
+          #       docker compose up --build -d
+          #     readyTimeout: "20000"
+
+          # Optional: Health check to ensure services are running
+          # - task: SSH@0
+          #   displayName: "Health check app"
+          #   inputs:
+          #     sshEndpoint: $(sshEndpoint)
+          #     runOptions: "commands"
+          #     commands: |
+          #       sleep 10
+          #       curl -f http://localhost:3000 || exit 1
+          #       curl -f http://localhost:5000 || exit 1
+          #     readyTimeout: "20000"
