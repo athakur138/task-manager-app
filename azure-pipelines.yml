@@ -61,7 +61,7 @@ stages:
               runOptions: "commands"
               commands: |
                 cd $(deployPath)
-                docker compose up --build -d
+                docker compose -f /home/ubuntu/task-manager-app/docker-compose.yml up --build -d
               readyTimeout: "20000"
 
           # Optional: Health check to ensure services are running
