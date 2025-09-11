@@ -1,64 +1,143 @@
+> For common Docker and service commands, see [REFERENCE.md](REFERENCE.md).
+
 # Task Manager App
 
-A full-stack project to showcase ReactJS (frontend), Node.js (backend), MySQL (database), Docker, and DevOps skills.
+## Quick Start
 
-## Features
+1. **Clone the repo & enter the folder:**
 
-- CRUD Tasks (Create, Read, Update, Delete)
-- ReactJS frontend
-- Node.js + Express backend
-- MySQL database
-- Dockerized setup (backend, frontend, and DB)
-- DevOps ready
-
-## Getting Started
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed.
-
-### Run Locally
-
-1. **Clone the repo:**
-   ```sh
-   git clone https://github.com/athakur138/task-manager-app.git
-   cd task-manager-app
-   ```
-
-2. **Start everything:**
-   ```sh
-   docker-compose up --build
-   ```
-
-3. **Access the app:**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000/api/tasks
-
-### DevOps/Deployment
-
-- Once running locally, you can push this setup to GitHub and deploy using:
-  - [Render](https://render.com/)
-  - [Railway](https://railway.app/)
-  - [Vercel](https://vercel.com/) (Frontend only; backend can be deployed to Render/Railway)
-- Update DB credentials for production use.
-
-### Folder Structure
-
-```
-task-manager-app/
-├── backend/
-├── frontend/
-├── db/
-├── docker-compose.yml
-└── README.md
+```sh
+git clone <your-repo-url>
+cd task-manager-app
 ```
 
-## Customization
+2. **Create a `.env` file in the root:**
 
-- Add authentication, more fields, or integrations to improve your project further!
+```env
+MYSQL_ROOT_PASSWORD=rootpass
+DB_DATABASE=taskmanager
+DB_USER=taskuser
+DB_PASSWORD=taskpass
+```
+
+3. **Build and run all services:**
+
+```sh
+docker-compose up --build -d
+```
+
+4. **Access the app:**
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend: [http://localhost:5000](http://localhost:5000)
 
 ---
 
-## License
+## Folder Structure
 
-MIT
+```
+task-manager-app/
+├── backend/              # Backend source code & Dockerfile
+├── frontend/             # Frontend source code & Dockerfile
+├── db/                   # Database initialization scripts
+│   └── init.sql
+├── docker-compose.yml    # Orchestrates all services
+├── .env                  # Environment variables
+└── README.md
+```
+
+---
+
+## Docker Compose Services
+
+| Service  | Image                         | Ports | Notes                       |
+| -------- | ----------------------------- | ----- | --------------------------- |
+| db       | mysql:8                       | 3306  | Initializes via db/init.sql |
+| backend  | athakurcovdev/backend:latest  | 5000  | Connects to db              |
+| frontend | athakurcovdev/frontend:latest | 3000  | Connects to backend         |
+
+---
+
+## Common Commands
+
+**Build and push images:**
+
+```sh
+docker build -t athakurcovdev/backend:latest ./backend
+docker push athakurcovdev/backend:latest
+
+docker build -t athakurcovdev/frontend:latest ./frontend
+docker push athakurcovdev/frontend:latest
+```
+
+**Start services:**
+
+```sh
+docker-compose up -d
+```
+
+**Stop services:**
+
+```sh
+docker-compose down
+```
+
+**Update images:**
+
+```sh
+docker pull athakurcovdev/backend:latest
+docker pull athakurcovdev/frontend:latest
+docker-compose up -d
+```
+
+---
+
+## Deploying on a Server (VM)
+
+1. Install Docker & Docker Compose on the server.
+2. Copy your project and update `.env` for production.
+3. Use Docker Hub images in `docker-compose.yml`:
+
+```yaml
+backend:
+  image: athakurcovdev/backend:latest
+frontend:
+  image: athakurcovdev/frontend:latest
+```
+
+4. SSH into the server and run:
+
+```sh
+docker pull athakurcovdev/backend:latest
+docker pull athakurcovdev/frontend:latest
+docker-compose up -d
+```
+
+5. Check status:
+
+```sh
+docker ps
+docker-compose logs -f
+```
+
+---
+
+## CI/CD Pipeline (Azure DevOps)
+
+1. **Build & Push Docker Images:**
+
+- CI pipeline builds and pushes backend & frontend images to Docker Hub.
+
+2. **Deploy to VM:**
+
+- CD pipeline pulls images from Docker Hub and runs containers.
+
+_Tip: Tag images with commit SHA or build ID for rollback/versioning._
+
+---
+
+## Notes
+
+- Database data persists as long as `db/init.sql` and Docker volumes are intact.
+- Ensure `.env` is consistent between local and server environments.
+- For multi-environment setups, use different Docker tags (dev, staging, prod).

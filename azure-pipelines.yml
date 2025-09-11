@@ -7,42 +7,49 @@ resources:
 variables:
   deployPath: "/home/ubuntu/task-manager-app"
   sshEndpoint: "training_anil"
+  dockerHubBackend: "athakurcovdev/backend"
+  dockerHubFrontend: "athakurcovdev/frontend"
+  dockerTag: "latest"
 
 stages:
-  - stage: Deploy
-    displayName: Deploy to VM
+  - stage: BuildAndPushImages
+    displayName: Build & Push Docker Images
     jobs:
-      - job: Deploy
-        displayName: Copy files & restart Docker
+      - job: BuildPush
+        displayName: Build & Push Docker Images
         pool:
           vmImage: ubuntu-latest
         steps:
-          # # Clean old files from target folder
-          - task: SSH@0
-            displayName: "Clean old deployment folder"
+          # Build & Push Backend Image
+          - task: Docker@2
+            displayName: "Build & Push Backend Image"
             inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: "commands"
-              commands: |
-                rm -rf $(deployPath)/*
-              readyTimeout: "20000"
+              containerRegistry: DockerHubConnection
+              repository: $(dockerHubBackend)
+              command: buildAndPush
+              Dockerfile: backend/Dockerfile
+              tags: $(dockerTag)
 
-          # Copy only required files
-          - task: CopyFilesOverSSH@0
-            displayName: "Copy app files to VM"
+          # Build & Push Frontend Image
+          - task: Docker@2
+            displayName: "Build & Push Frontend Image"
             inputs:
-              sshEndpoint: $(sshEndpoint)
-              sourceFolder: "$(Build.SourcesDirectory)"
-              contents: |
-                backend/**
-                frontend/**
-                db/**
-                .env
-                docker-compose.yml
-              targetFolder: $(deployPath)
-              readyTimeout: "20000"
+              containerRegistry: DockerHubConnection
+              repository: $(dockerHubFrontend)
+              command: buildAndPush
+              Dockerfile: frontend/Dockerfile
+              tags: $(dockerTag)
 
-          # Stop existing containers safely
+  - stage: DeployToVM
+    displayName: Deploy to VM
+    dependsOn: BuildAndPushImages
+    jobs:
+      - job: Deploy
+        displayName: Pull Images & Restart Docker
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          # Stop running containers safely
           - task: SSH@0
             displayName: "Stop running containers"
             inputs:
@@ -50,28 +57,24 @@ stages:
               runOptions: "commands"
               commands: |
                 cd $(deployPath)
-                docker compose -f /home/ubuntu/task-manager-app/docker-compose.yml down
-              readyTimeout: "20000"
+                docker compose down || true
 
-          # Rebuild & restart containers in detached mode
+          # Pull latest images from Docker Hub
           - task: SSH@0
-            displayName: "Rebuild and restart containers"
+            displayName: "Pull Docker Hub images"
+            inputs:
+              sshEndpoint: $(sshEndpoint)
+              runOptions: "commands"
+              commands: |
+                docker pull $(dockerHubBackend):$(dockerTag)
+                docker pull $(dockerHubFrontend):$(dockerTag)
+
+          # Start containers using updated docker-compose.yml
+          - task: SSH@0
+            displayName: "Start containers"
             inputs:
               sshEndpoint: $(sshEndpoint)
               runOptions: "commands"
               commands: |
                 cd $(deployPath)
-                docker compose -f /home/ubuntu/task-manager-app/docker-compose.yml up --build -d
-              readyTimeout: "20000"
-
-          # Optional: Health check to ensure services are running
-          # - task: SSH@0
-          #   displayName: "Health check app"
-          #   inputs:
-          #     sshEndpoint: $(sshEndpoint)
-          #     runOptions: "commands"
-          #     commands: |
-          #       sleep 10
-          #       curl -f http://localhost:3000 || exit 1
-          #       curl -f http://localhost:5000 || exit 1
-          #     readyTimeout: "20000"
+                docker compose up -d
