@@ -2,7 +2,7 @@ trigger:
   - main
 
 variables:
-  deployPath: "/home/ubuntu/task-manager-app"
+  deployPath: "/home/ubuntu/"
   sshEndpoint: "training_anil"
   dockerHubBackend: "athakurcovdev/backend"
   dockerHubFrontend: "athakurcovdev/frontend"
