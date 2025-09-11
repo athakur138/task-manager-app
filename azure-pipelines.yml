@@ -1,84 +1,28 @@
-trigger:
-  - main
+- task: SSH@0
+  displayName: "Stop running containers"
+  inputs:
+    sshEndpoint: $(sshEndpoint)
+    runOptions: "commands"
+    commands: |
+      docker stop backend-container || true
+      docker stop frontend-container || true
+      docker rm backend-container || true
+      docker rm frontend-container || true
 
-variables:
-  deployPath: "/home/ubuntu/"
-  sshEndpoint: "training_anil"
-  dockerHubBackend: "athakurcovdev/backend"
-  dockerHubFrontend: "athakurcovdev/frontend"
-  dockerTag: "latest"
+- task: SSH@0
+  displayName: "Pull Docker Hub images"
+  inputs:
+    sshEndpoint: $(sshEndpoint)
+    runOptions: "commands"
+    commands: |
+      docker pull $(dockerHubBackend):$(dockerTag)
+      docker pull $(dockerHubFrontend):$(dockerTag)
 
-stages:
-  - stage: BuildAndPushImages
-    displayName: Build & Push Docker Images
-    jobs:
-      - job: BuildPush
-        displayName: Build & Push Docker Images
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          # Docker login using a service connection
-          - task: Docker@2
-            displayName: "Login to Docker Hub"
-            inputs:
-              command: login
-              containerRegistry: "DockerHubConnection" # Make sure this service connection exists
-
-          # Build & Push Backend Image
-          - task: Docker@2
-            displayName: "Build & Push Backend Image"
-            inputs:
-              containerRegistry: "DockerHubConnection"
-              repository: $(dockerHubBackend)
-              command: buildAndPush
-              Dockerfile: backend/Dockerfile
-              tags: $(dockerTag)
-
-          # Build & Push Frontend Image
-          - task: Docker@2
-            displayName: "Build & Push Frontend Image"
-            inputs:
-              containerRegistry: "DockerHubConnection"
-              repository: $(dockerHubFrontend)
-              command: buildAndPush
-              Dockerfile: frontend/Dockerfile
-              tags: $(dockerTag)
-
-  - stage: DeployToVM
-    displayName: Deploy to VM
-    dependsOn: BuildAndPushImages
-    jobs:
-      - job: Deploy
-        displayName: Pull Images & Restart Docker
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          # Stop running containers safely
-          - task: SSH@0
-            displayName: "Stop running containers"
-            inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: "commands"
-              commands: |
-                cd $(deployPath)
-                docker compose down || true
-
-          # Pull latest images from Docker Hub
-          - task: SSH@0
-            displayName: "Pull Docker Hub images"
-            inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: "commands"
-              commands: |
-                docker pull $(dockerHubBackend):$(dockerTag)
-                docker pull $(dockerHubFrontend):$(dockerTag)
-
-          # Start containers using updated docker-compose.yml
-          - task: SSH@0
-            displayName: "Start containers"
-            inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: "commands"
-              commands: |
-                cd $(deployPath)
-                docker compose up -d
+- task: SSH@0
+  displayName: "Run containers"
+  inputs:
+    sshEndpoint: $(sshEndpoint)
+    runOptions: "commands"
+    commands: |
+      docker run -d --name backend-container -p 5000:5000 $(dockerHubBackend):$(dockerTag)
+      docker run -d --name frontend-container -p 3000:3000 $(dockerHubFrontend):$(dockerTag)
