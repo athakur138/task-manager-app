@@ -1,40 +1,80 @@
-services:
-  db:
-    image: mysql:8
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "3306:3306"
-    volumes:
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+trigger:
+  - main
 
-  backend:
-    build: ./backend
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - DB_HOST=db
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_DATABASE=${DB_DATABASE}
-    ports:
-      - "5000:5000"
+resources:
+  - repo: self
 
-  frontend:
-    build: ./frontend
-    restart: always
-    depends_on:
-      - backend
-    ports:
-      - "3000:3000"
+variables:
+  deployPath: "/home/ubuntu/task-manager-app"
+  sshEndpoint: "training_anil"
+  dockerHubBackend: "athakurcovdev/backend"
+  dockerHubFrontend: "athakurcovdev/frontend"
+  dockerTag: "latest"
+
+stages:
+  - stage: BuildAndPushImages
+    displayName: Build & Push Docker Images
+    jobs:
+      - job: BuildPush
+        displayName: Build & Push Docker Images
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          # Build & Push Backend Image
+          - task: Docker@2
+            displayName: "Build & Push Backend Image"
+            inputs:
+              containerRegistry: DockerHubConnection
+              repository: $(dockerHubBackend)
+              command: buildAndPush
+              Dockerfile: backend/Dockerfile
+              tags: $(dockerTag)
+
+          # Build & Push Frontend Image
+          - task: Docker@2
+            displayName: "Build & Push Frontend Image"
+            inputs:
+              containerRegistry: DockerHubConnection
+              repository: $(dockerHubFrontend)
+              command: buildAndPush
+              Dockerfile: frontend/Dockerfile
+              tags: $(dockerTag)
+
+  - stage: DeployToVM
+    displayName: Deploy to VM
+    dependsOn: BuildAndPushImages
+    jobs:
+      - job: Deploy
+        displayName: Pull Images & Restart Docker
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          # Stop running containers safely
+          - task: SSH@0
+            displayName: "Stop running containers"
+            inputs:
+              sshEndpoint: $(sshEndpoint)
+              runOptions: "commands"
+              commands: |
+                cd $(deployPath)
+                docker compose down || true
+
+          # Pull latest images from Docker Hub
+          - task: SSH@0
+            displayName: "Pull Docker Hub images"
+            inputs:
+              sshEndpoint: $(sshEndpoint)
+              runOptions: "commands"
+              commands: |
+                docker pull $(dockerHubBackend):$(dockerTag)
+                docker pull $(dockerHubFrontend):$(dockerTag)
+
+          # Start containers using updated docker-compose.yml
+          - task: SSH@0
+            displayName: "Start containers"
+            inputs:
+              sshEndpoint: $(sshEndpoint)
+              runOptions: "commands"
+              commands: |
+                cd $(deployPath)
+                docker compose up -d
