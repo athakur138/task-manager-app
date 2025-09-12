@@ -73,7 +73,7 @@ stages:
             displayName: "Pull Docker Hub images"
             inputs:
               sshEndpoint: $(sshEndpoint)
-              runOptions: commands
+              runOptions: inline
               script: |
                 docker pull mysql:8.0
 
