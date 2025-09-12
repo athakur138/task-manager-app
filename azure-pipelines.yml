@@ -2,7 +2,6 @@ trigger:
   - main
 
 variables:
-  deployPath: "/home/ubuntu"
   sshEndpoint: "training_anil"
   dockerHubBackend: "athakurcovdev/backend"
   dockerHubFrontend: "athakurcovdev/frontend"
@@ -22,11 +21,11 @@ stages:
           vmImage: ubuntu-latest
         steps:
           # Docker login
-          - task: Docker@2
-            displayName: "Login to Docker Hub"
-            inputs:
-              command: login
-              containerRegistry: "DockerHubConnection" # Must exist in your project
+          # - task: Docker@2
+          #   displayName: "Login to Docker Hub"
+          #   inputs:
+          #     command: login
+          #     containerRegistry: "DockerHubConnection" # Must exist in your project
 
           # Build & push backend image
           - task: Docker@2
@@ -58,16 +57,16 @@ stages:
           vmImage: ubuntu-latest
         steps:
           # Stop and remove existing containers safely
-          - task: SSH@0
-            displayName: "Stop and remove containers"
-            inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: commands
-              commands: |
-                docker stop $(backendContainerName) || true
-                docker rm $(backendContainerName) || true
-                docker stop $(frontendContainerName) || true
-                docker rm $(frontendContainerName) || true
+          # - task: SSH@0
+          #   displayName: "Stop and remove containers"
+          #   inputs:
+          #     sshEndpoint: $(sshEndpoint)
+          #     runOptions: commands
+          #     commands: |
+          #       docker stop $(backendContainerName) || true
+          #       docker rm $(backendContainerName) || true
+          #       docker stop $(frontendContainerName) || true
+          #       docker rm $(frontendContainerName) || true
 
           # Pull latest images from Docker Hub
           - task: SSH@0
@@ -75,16 +74,21 @@ stages:
             inputs:
               sshEndpoint: $(sshEndpoint)
               runOptions: commands
-              commands: |
+              script: |
+                docker pull mysql:8.0
+
+                # Start MySQL container
+                sudo docker run -d \
+                  --name mysql \
+                  --restart always \
+                  -e MYSQL_ROOT_PASSWORD=ats123@root \
+                  -e MYSQL_DATABASE=taskdb \
+                  -e MYSQL_USER=appuser \
+                  -e MYSQL_PASSWORD=ats123 \
+                  -v mysql_data:/var/lib/mysql \
+                  -v /home/ubuntu/athakur/init.sql:/docker-entrypoint-initdb.d/init.sql \
+                  mysql:8.0
                 docker pull $(dockerHubBackend):$(dockerTag)
                 docker pull $(dockerHubFrontend):$(dockerTag)
-
-          # Run containers with updated images
-          - task: SSH@0
-            displayName: "Run containers"
-            inputs:
-              sshEndpoint: $(sshEndpoint)
-              runOptions: commands
-              commands: |
                 docker run -d --name $(backendContainerName) -p $(backendPort):$(backendPort) $(dockerHubBackend):$(dockerTag)
                 docker run -d --name $(frontendContainerName) -p $(frontendPort):$(frontendPort) $(dockerHubFrontend):$(dockerTag)

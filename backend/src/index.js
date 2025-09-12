@@ -7,10 +7,10 @@ app.use(cors())
 app.use(express.json())
 
 const db1 = mysql.createConnection({
-  host: process.env.DB_HOST || "db",
-  user: process.env.DB_USER || "appuser",
-  password: process.env.DB_PASSWORD || "ats123",
-  database: process.env.DB_DATABASE || "taskdb",
+  host: "db",
+  user: "appuser",
+  password: "ats123",
+  database: "taskdb",
 })
 
 app.get("/api/tasks", (req, res) => {
